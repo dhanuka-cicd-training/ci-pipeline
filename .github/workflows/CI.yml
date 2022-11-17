@@ -3,7 +3,7 @@ name: CI Build
 on:
   push:
     branches:
-      - sonarqube
+      - main
   pull_request:
     branches:
       - main
@@ -35,7 +35,9 @@ jobs:
           restore-keys: ${{ runner.os }}-sonar-scanner
       - name: Install code coverage tools
         shell: powershell
-        run: dotnet tool install --global JetBrains.dotCover.GlobalTool
+        run: |
+          dotnet tool install --global JetBrains.dotCover.GlobalTool
+          dotnet tool install --global dotnet-coverage
       - name: Install SonarCloud scanner
         if: steps.cache-sonar-scanner.outputs.cache-hit != 'true'
         shell: powershell
@@ -43,13 +45,13 @@ jobs:
           New-Item -Path .\.sonar\scanner -ItemType Directory
           dotnet tool update dotnet-sonarscanner --tool-path .\.sonar\scanner
           dotnet restore
-      - name: Build and analyze
+      - name: Build test and analyze
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         shell: powershell
         run: |
-          .\.sonar\scanner\dotnet-sonarscanner begin /k:"dhanuka-cicd-training_ci-pipeline" /o:"dhanuka-cicd-training" /d:sonar.login="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io"
-          dotnet build --configuration Release 
-          dotnet test --dcReportType=HTML
+          .\.sonar\scanner\dotnet-sonarscanner begin /k:"dhanuka-cicd-training_ci-pipeline" /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml /o:"dhanuka-cicd-training" /d:sonar.login="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io"
+          dotnet build --no-incremental
+          dotnet-coverage collect 'dotnet test' -f xml  -o 'coverage.xml'
           .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.login="${{ secrets.SONAR_TOKEN }}"
